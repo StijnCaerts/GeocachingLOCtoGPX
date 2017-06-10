@@ -20,15 +20,15 @@ if waypoint.tag == 'waypoint':
     for child in waypoint:
         if child.tag == 'name':
             cacheID = child.attrib['id']
-            cacheName = child.text
+            desc = child.text
         elif child.tag == 'coord':
             latitude = child.attrib['lat']
             longitude = child.attrib['lon']
         elif child.tag == 'type':
             type = child.text
-    if cacheID != "" and cacheName != "" and latitude != "" and longitude != "" and type != "":
+    if cacheID != "" and desc != "" and latitude != "" and longitude != "" and type != "":
         # All variables are set
-        print(cacheID, cacheName, latitude, longitude)
+        print(cacheID, desc, latitude, longitude)
     else:
         print("LOC file is not valid")
         exit()
@@ -40,8 +40,11 @@ else:
 url = "http://www.geocaching.com/seek/cache_details.aspx?wp=" + cacheID
 page = requests.get(url)
 htmlTree = html.fromstring(page.content)
+name = htmlTree.xpath('//span[@id="ctl00_ContentBody_CacheName"]/text()')[0]
+ctype = htmlTree.xpath('//p[@class="cacheImage"]/a/img')[0].get('title')
 diff = htmlTree.xpath('//dl/dd/span[@id="ctl00_ContentBody_uxLegendScale"]/img')[0].get('alt').split()[0]
 terr = htmlTree.xpath('//dl/dd/span[@id="ctl00_ContentBody_Localize12"]/img')[0].get('alt').split()[0]
+size = htmlTree.xpath('//span[@class="minorCacheDetails"]/img')[0].get('title').split()[1].title()
 
 
 # Construct GPX file
@@ -49,20 +52,20 @@ gpx = ET.Element("gpx")
 
 wpt = ET.SubElement(gpx, "wpt", lat=latitude, lon=longitude)
 ET.SubElement(wpt, "name").text = cacheID
-ET.SubElement(wpt, "desc").text = cacheName
+ET.SubElement(wpt, "desc").text = desc
 
 ET.SubElement(wpt, "url").text = url
 ET.SubElement(wpt, "urlname").text = cacheID
 ET.SubElement(wpt, "sym").text = type
-ET.SubElement(wpt, "type").text = type
+ET.SubElement(wpt, "type").text = type + "|" + ctype
 
 # TODO: id, available, archived in cache tag
 cache = ET.SubElement(wpt, "groundspeak:cache")
-ET.SubElement(cache, "groundspeak:name").text = ""
+ET.SubElement(cache, "groundspeak:name").text = name
 ET.SubElement(cache, "groundspeak:placed_by").text = ""
 ET.SubElement(cache, "groundspeak:owner", ID="").text = ""
-ET.SubElement(cache, "groundspeak:type").text = ""
-ET.SubElement(cache, "groundspeak:container").text = ""
+ET.SubElement(cache, "groundspeak:type").text = ctype
+ET.SubElement(cache, "groundspeak:container").text = size
 ET.SubElement(cache, "groundspeak:difficulty").text = diff
 ET.SubElement(cache, "groundspeak:terrain").text = terr
 ET.SubElement(cache, "groundspeak:short_description").text = ""
