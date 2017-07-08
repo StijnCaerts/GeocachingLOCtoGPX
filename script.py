@@ -83,6 +83,7 @@ output_file = args.output
 
 # Construct GPX structure
 gpx = ET.Element("gpx")
+gpx.set("xmlns:groundspeak","http://www.groundspeak.com/cache/1/0")
 
 if isfile(input_arg) and hasValidExtension(input_arg):
     processFile(input_arg, gpx)
