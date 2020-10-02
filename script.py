@@ -5,10 +5,28 @@ import xml.etree.ElementTree as ET
 from lxml import html
 import requests
 
+cache_types = None
+
 
 def hasValidExtension(file):
     filename, ext = splitext(file)
-    return ext == '.loc' or ext == '.LOC'
+    return ext.lower() == '.loc'
+
+
+def getCacheType(uri):
+    global cache_types
+    if cache_types is None:
+        # populate cache types
+        svg = requests.get(f"https://geocaching.com{uri}")
+        svgTree = ET.fromstring(svg.content)
+
+        cache_types = {
+            symbol.attrib['id']: symbol.find("{http://www.w3.org/2000/svg}title").text
+            for symbol in svgTree
+        }
+
+    type_code = uri.split("#")[-1]
+    return cache_types[type_code]
 
 
 def processFile(file, gpx):
@@ -42,7 +60,7 @@ def processFile(file, gpx):
     page = requests.get(url)
     htmlTree = html.fromstring(page.content)
     name = htmlTree.xpath('//span[@id="ctl00_ContentBody_CacheName"]/text()')[0]
-    ctype = htmlTree.xpath('//p[@class="cacheImage"]/a/img')[0].get('title')
+    ctype = getCacheType(htmlTree.xpath('//div[@id="uxCacheImage"]//svg/use')[0].get("xlink:href"))
     diff = htmlTree.xpath('//dl/dd/span[@id="ctl00_ContentBody_uxLegendScale"]/img')[0].get('alt').split()[0]
     terr = htmlTree.xpath('//dl/dd/span[@id="ctl00_ContentBody_Localize12"]/img')[0].get('alt').split()[0]
     size = htmlTree.xpath('//span[@class="minorCacheDetails"]/img')[0].get('title').split()[1].title()
@@ -69,35 +87,32 @@ def processFile(file, gpx):
     ET.SubElement(cache, "groundspeak:long_description").text = ""
 
 
-################
-# MAIN PROGRAM #
-################
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Geocaching LOC to GPX")
+    parser.add_argument("input")
+    parser.add_argument("output")
+    args = parser.parse_args()
 
-parser = argparse.ArgumentParser(description="Geocaching LOC to GPX")
-parser.add_argument("input")
-parser.add_argument("output")
-args = parser.parse_args()
+    input_arg = args.input
+    output_file = args.output
 
-input_arg = args.input
-output_file = args.output
+    # Construct GPX structure
+    gpx = ET.Element("gpx")
+    gpx.set("xmlns:groundspeak","http://www.groundspeak.com/cache/1/0")
 
-# Construct GPX structure
-gpx = ET.Element("gpx")
-gpx.set("xmlns:groundspeak","http://www.groundspeak.com/cache/1/0")
+    if isfile(input_arg) and hasValidExtension(input_arg):
+        processFile(input_arg, gpx)
+    elif isdir(input_arg):
+        # do for all LOC files in folder
+        for file in listdir(input_arg):
+            if hasValidExtension(file):
+                path = join(input_arg, file)
+                processFile(path, gpx)
 
-if isfile(input_arg) and hasValidExtension(input_arg):
-    processFile(input_arg, gpx)
-elif isdir(input_arg):
-    # do for all LOC files in folder
-    for file in listdir(input_arg):
-        if hasValidExtension(file):
-            path = join(input_arg, file)
-            processFile(path, gpx)
-
-# Write out GPX file if not empty
-if len(gpx):
-    output_tree = ET.ElementTree(gpx)
-    output_tree.write(output_file, "UTF-8", True)
+    # Write out GPX file if not empty
+    if len(gpx):
+        output_tree = ET.ElementTree(gpx)
+        output_tree.write(output_file, "UTF-8", True)
 
 
 
